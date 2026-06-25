@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TEAM OKD</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <canvas id="particles"></canvas>
+
+  <section id="enterScreen" class="enter-screen">
+    <div class="glow-orb"></div>
+    <div class="crest">
+      <div class="star">★</div>
+      <h1>TEAM OKD</h1>
+      <p>OFFICIAL PROFILE SHOWCASE</p>
+    </div>
+    <button id="enterBtn" class="enter-btn">ENTER</button>
+  </section>
+
+  <main id="app" class="app hidden">
+    <header class="topbar">
+      <div class="clock">
+        <b id="timeNow">00:00 AM</b>
+        <span id="dateNow">TEAM OKD</span>
+      </div>
+      <div class="stats">
+        <span><i class="online-dot"></i><b id="visitCount">1</b> VISITS</span>
+        <span>👥 <b id="memberCount">0</b> MEMBERS</span>
+        <button id="adminToggle" class="small-btn">OWNER LOGIN</button>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="logo-mini"><span>★</span><b>TEAM OKD</b></div>
+      <div class="divider"><span>MEMBERS</span></div>
+      <div id="featuredMembers" class="featured-grid"></div>
+      <div class="divider"><span>CREW</span></div>
+      <div id="memberGrid" class="member-grid"></div>
+    </section>
+
+    <section id="profileView" class="profile-view hidden">
+      <button id="backBtn" class="back-btn">‹ TEAM OKD / MEMBERS</button>
+      <div id="profileBg" class="profile-bg"></div>
+      <div class="profile-card">
+        <img id="profileAvatar" class="profile-avatar" src="" alt="avatar">
+        <h2 id="profileName"></h2>
+        <p id="profileSlug"></p>
+        <div id="profileBio" class="bio-pill"></div>
+        <div id="socialLinks" class="social-links"></div>
+      </div>
+    </section>
+
+    <!-- Hidden audio engine. No public music UI, so visitors cannot mute/pause from the page. -->
+    <audio id="audio" loop preload="auto" class="hidden-audio"></audio>
+
+    <section id="adminPanel" class="admin-panel hidden">
+      <div class="panel-head">
+        <h3>TEAM OKD Owner Panel</h3>
+        <button id="closeAdmin">×</button>
+      </div>
+      <div id="ownerLoginBox" class="owner-login">
+        <p class="hint">Owner access only. Enter the owner passcode to add, remove, or edit members.</p>
+        <input id="ownerPass" type="password" placeholder="Owner passcode">
+        <button id="ownerLoginBtn" class="red-btn" type="button">Unlock Owner Panel</button>
+      </div>
+      <div id="ownerTools" class="hidden">
+      <p class="hint">Owner mode unlocked. Edits sync to all visitors when Firebase is configured. Use direct MP3/WAV/OGG or Discord CDN links for music that everyone can hear.</p>
+      <div class="admin-grid">
+        <label>Site Music URL <input id="musicUrl" placeholder="music/main.mp3, direct .mp3/.wav/.ogg, or Discord CDN audio link"></label>
+        <label>Upload Site Music <input id="musicUpload" type="file" accept="audio/*"></label>
+        <label>Background URL <input id="globalBg" placeholder="https://image-url.jpg"></label>
+        <button id="saveSite" class="red-btn">Save Site Settings</button>
+        <button id="resetData" class="ghost-btn">Reset Demo Data</button>
+      </div>
+      <hr>
+      <h4>Add / Edit Member</h4>
+      <form id="memberForm" class="member-form">
+        <input type="hidden" id="editId">
+        <input id="name" placeholder="Name" required>
+        <input id="role" placeholder="Role / Status e.g. Owner, Member">
+        <input id="avatar" placeholder="Avatar URL">
+        <input id="background" placeholder="Profile Background URL">
+        <input id="profileMusic" placeholder="Profile Music URL, e.g. music/member.mp3 or Discord CDN audio link">
+        <label class="file-label">Upload Profile Music <input id="profileMusicUpload" type="file" accept="audio/*"></label>
+        <textarea id="bio" placeholder="Bio"></textarea>
+        <input id="discord" placeholder="Discord ID">
+        <input id="kick" placeholder="Kick URL or username">
+        <input id="twitch" placeholder="Twitch URL or username">
+        <input id="tiktok" placeholder="TikTok URL or username">
+        <input id="roblox" placeholder="Roblox ID / profile URL">
+        <input id="facebook" placeholder="Facebook URL or username">
+        <input id="instagram" placeholder="Instagram URL or username">
+        <button class="red-btn" type="submit">Save Member</button>
+      </form>
+      <div id="adminMembers" class="admin-members"></div>
+      <button id="ownerLogoutBtn" class="ghost-btn" type="button">Lock Owner Panel</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
