@@ -1,21 +1,15 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+// TEAM OKD CLOUD SYNC CONFIG
+// 1. Create a free Firebase project
+// 2. Create Firestore Database
+// 3. Paste your Firebase web app config below
+// 4. Deploy the site to Vercel/GitHub Pages
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyBwCSKHNhzCIorttBaI0b-0q-Nh4CEeIgQ",
-  authDomain: "okdprofile.firebaseapp.com",
-  projectId: "okdprofile",
-  storageBucket: "okdprofile.firebasestorage.app",
-  messagingSenderId: "992017787893",
-  appId: "1:992017787893:web:304fb481d0bb36ac4acebc",
-  measurementId: "G-1FM3GJLXJM"
+window.FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBFm7pBXkKyilu6va4gY3fVmbhqSMFHabs",
+  authDomain: "team-okd-showcase.firebaseapp.com",
+  projectId: "team-okd-showcase",
+  storageBucket: "team-okd-showcase.firebasestorage.app",
+  messagingSenderId: "681493770549",
+  appId: "1:681493770549:web:cf2ecf6d0906a398869c7c",
+  measurementId: "G-LHRDG391M1"
 };
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
