@@ -48,18 +48,62 @@ function firebaseConfigured(){
   return !!(cfg.apiKey && cfg.projectId && !String(cfg.apiKey).includes('PASTE_') && window.firebase && firebase.apps !== undefined && firebase.firestore);
 }
 function currentState(){ return { members: store.members, settings: store.settings, updatedAt: Date.now(), publishedAt: new Date().toISOString() }; }
+
+// Public load fixer: always understand the saved Firestore format.
+// Some older builds saved the member list as numeric top-level fields (0,1,2...)
+// instead of { members: [...] }. This normalizer makes visitors render all profiles
+// no matter which old save format is currently in Firestore.
+function normalizeCloudState(raw){
+  if(!raw || typeof raw !== 'object') return null;
+  let members = Array.isArray(raw.members) ? raw.members : [];
+
+  // Legacy/malformed fallback: document has fields "0", "1", "2"... as members.
+  if(!members.length){
+    members = Object.keys(raw)
+      .filter(k => /^\d+$/.test(k) && raw[k] && typeof raw[k] === 'object')
+      .sort((a,b) => Number(a) - Number(b))
+      .map(k => raw[k])
+      .filter(m => m && (m.name || m.id));
+  }
+
+  members = members.map((m, i) => ({
+    id: String(m.id || (m.name ? m.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') : `member-${i+1}`) || `member-${i+1}`),
+    name: String(m.name || `Member ${i+1}`),
+    role: String(m.role || 'MEMBER'),
+    bio: String(m.bio || ''),
+    avatar: String(m.avatar || ''),
+    background: String(m.background || ''),
+    discord: String(m.discord || ''),
+    lanyardId: String(m.lanyardId || ''),
+    kick: String(m.kick || ''),
+    twitch: String(m.twitch || ''),
+    tiktok: String(m.tiktok || ''),
+    roblox: String(m.roblox || ''),
+    facebook: String(m.facebook || ''),
+    instagram: String(m.instagram || ''),
+    profileMusic: String(m.profileMusic || '')
+  }));
+
+  const settings = raw.settings && typeof raw.settings === 'object'
+    ? {...DEFAULT_SETTINGS, ...raw.settings}
+    : {...DEFAULT_SETTINGS, music: raw.music || '', bg: raw.bg || raw.background || ''};
+
+  return { members, settings, updatedAt: +(raw.updatedAt || 0), publishedAt: raw.publishedAt || '' };
+}
+
 function applyState(state){
-  if(!state) return;
-  const cloudUpdated = +(state.updatedAt || 0);
+  const normalized = normalizeCloudState(state);
+  if(!normalized) return;
+  const cloudUpdated = +(normalized.updatedAt || 0);
   const localUpdated = getLocalUpdatedAt();
-  // Owner mode may have unsaved local edits. Do not let an older cloud snapshot wipe them.
+  // Only protect unsaved local owner edits. Visitors must always see the public Firestore version.
   if(ownerUnlocked && localUpdated && cloudUpdated && localUpdated > cloudUpdated){
     updateCloudStatus('Cloud: connected, local edits newer. Click Save / Publish To Cloud.', true);
     return;
   }
   applyingCloud=true;
-  if(Array.isArray(state.members)) localStorage.okdMembers=JSON.stringify(state.members);
-  if(state.settings) localStorage.okdSettings=JSON.stringify({...DEFAULT_SETTINGS,...state.settings});
+  if(Array.isArray(normalized.members)) localStorage.okdMembers=JSON.stringify(normalized.members);
+  if(normalized.settings) localStorage.okdSettings=JSON.stringify({...DEFAULT_SETTINGS,...normalized.settings});
   if(cloudUpdated) localStorage.okdUpdatedAt=String(cloudUpdated);
   applyingCloud=false;
   render(); fetchLanyardPresence();
@@ -96,6 +140,16 @@ function initCloudSync(){
     cloudReady=true;
     updateCloudStatus('Cloud: connected', true);
     initVisitorAnalytics();
+
+    // Immediate load first, so visitors do not stay on local/demo cache.
+    cloudRef.get().then(snap => {
+      const state = snap.exists ? snap.data() : null;
+      if(state) applyState(state);
+    }).catch(err => {
+      console.warn('Initial Firestore load failed:', err);
+      updateCloudStatus('Cloud: initial load failed. Check Firestore rules.', false);
+    });
+
     cloudRef.onSnapshot(snap=>{
       const state=snap.exists ? snap.data() : null;
       if(state) applyState(state);
