@@ -29,7 +29,8 @@
         <span id="dateNow">TEAM OKD</span>
       </div>
       <div class="stats">
-        <span><i class="online-dot"></i><b id="visitCount">1</b> VISITS</span>
+        <span><i class="online-dot"></i><b id="onlineCount">0</b> ONLINE</span>
+        <span>👁 <b id="visitCount">1</b> VISITS</span>
         <span>👥 <b id="memberCount">0</b> MEMBERS</span>
         <button id="adminToggle" class="small-btn">OWNER LOGIN</button>
       </div>
@@ -81,6 +82,19 @@
         <button id="saveSite" class="red-btn">Save Site Settings</button>
         <button id="resetData" class="ghost-btn">Reset Demo Data</button>
       </div>
+      <hr>
+      <h4>Owner Dashboard</h4>
+      <div class="visitor-dashboard">
+        <div class="dash-card"><span>Total Visits</span><b id="dashTotalVisits">0</b></div>
+        <div class="dash-card"><span>Today</span><b id="dashTodayVisits">0</b></div>
+        <div class="dash-card"><span>Online Now</span><b id="dashOnlineNow">0</b></div>
+        <div class="dash-card"><span>Top Profile</span><b id="dashTopProfile">—</b></div>
+      </div>
+      <div class="visitor-head">
+        <h4>Recent Visitors <small class="security-note">IP security log</small></h4>
+        <button id="refreshVisitors" class="ghost-btn" type="button">Refresh</button>
+      </div>
+      <div id="visitorLog" class="visitor-log"><p class="hint">Visitor logs appear here after Firebase is connected.</p></div>
       <hr>
       <h4>Add / Edit Member</h4>
       <form id="memberForm" class="member-form">
