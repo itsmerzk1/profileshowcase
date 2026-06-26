@@ -29,7 +29,8 @@
         <span id="dateNow">TEAM OKD</span>
       </div>
       <div class="stats">
-        <span><i class="online-dot"></i><b id="visitCount">1</b> VISITS</span>
+        <span><i class="online-dot"></i><b id="onlineCount">0</b> ONLINE</span>
+        <span>👁 <b id="visitCount">1</b> VISITS</span>
         <span>👥 <b id="memberCount">0</b> MEMBERS</span>
         <button id="adminToggle" class="small-btn">OWNER LOGIN</button>
       </div>
@@ -82,19 +83,31 @@
         <button id="resetData" class="ghost-btn">Reset Demo Data</button>
       </div>
       <hr>
+      <h4>Owner Dashboard</h4>
+      <div class="visitor-dashboard">
+        <div class="dash-card"><span>Total Visits</span><b id="dashTotalVisits">0</b></div>
+        <div class="dash-card"><span>Today</span><b id="dashTodayVisits">0</b></div>
+        <div class="dash-card"><span>Online Now</span><b id="dashOnlineNow">0</b></div>
+        <div class="dash-card"><span>Top Profile</span><b id="dashTopProfile">—</b></div>
+      </div>
+      <div class="visitor-head">
+        <h4>Recent Visitors <small class="security-note">IP security log</small></h4>
+        <button id="refreshVisitors" class="ghost-btn" type="button">Refresh</button>
+      </div>
+      <div id="visitorLog" class="visitor-log"><p class="hint">Visitor logs appear here after Firebase is connected.</p></div>
+      <hr>
       <h4>Add / Edit Member</h4>
       <form id="memberForm" class="member-form">
         <input type="hidden" id="editId">
         <input id="name" placeholder="Name" required>
         <input id="role" placeholder="Role / Status e.g. Owner, Member">
-        <input id="avatar" placeholder="Avatar URL fallback only — Discord avatar auto-syncs from User ID">
+        <input id="avatar" placeholder="Avatar URL">
         <input id="background" placeholder="Profile Background URL">
         <input id="profileMusic" placeholder="Profile Music URL, e.g. music/member.mp3 or Discord CDN audio link">
         <label class="file-label">Upload Profile Music <input id="profileMusicUpload" type="file" accept="audio/*"></label>
         <textarea id="bio" placeholder="Bio"></textarea>
         <input id="discord" placeholder="Discord tag/name e.g. RZK1#0001">
-        <input id="lanyardId" placeholder="Discord User ID for Lanyard avatar/status sync e.g. 123456789012345678">
-        <p class="mini-hint">Discord User ID controls live avatar/status. Avatar URL is only a fallback.</p>
+        <input id="lanyardId" placeholder="Discord User ID for Lanyard live status e.g. 123456789012345678">
         <input id="kick" placeholder="Kick URL or username">
         <input id="twitch" placeholder="Twitch URL or username">
         <input id="tiktok" placeholder="TikTok URL or username">
