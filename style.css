@@ -27,3 +27,18 @@
 .status-offline .member-role,.profile-status.status-offline{color:#77717b}
 .profile-status{margin:6px 0 0!important;letter-spacing:4px;font-size:12px;font-weight:700}
 .profile-activity{min-height:18px;color:#aaa!important;letter-spacing:2px!important;font-size:12px!important;margin:8px 0!important}
+
+
+/* Lanyard Plus: Discord avatar, status, Spotify, custom status, current activity */
+.member-card.status-online{border-color:#22ff8844;box-shadow:inset 0 0 22px #22ff8812}
+.member-card.status-idle{border-color:#ffcc3344;box-shadow:inset 0 0 22px #ffcc3312}
+.member-card.status-dnd{border-color:#ff315c66;box-shadow:inset 0 0 22px #ff315c18}
+.member-activity{padding:0 14px;}
+#profileLiveStatus{width:min(520px,92vw);margin:12px auto 4px;}
+.lanyard-panel{border:1px solid #2c2c33;background:#09090dcc;border-radius:18px;padding:14px;text-align:left;box-shadow:0 0 35px #0008;backdrop-filter:blur(12px)}
+.lanyard-panel.status-online{border-color:#22ff8855}.lanyard-panel.status-idle{border-color:#ffcc3355}.lanyard-panel.status-dnd{border-color:#ff315c66}
+.lanyard-title{font-size:10px;letter-spacing:4px;color:#777;text-transform:uppercase;margin-bottom:10px;text-align:center}
+.lanyard-row{display:flex;align-items:center;gap:12px;justify-content:center;text-align:left}.lanyard-row b{display:block;color:#fff}.lanyard-row span{display:block;color:#aaa;font-size:12px;letter-spacing:2px;margin-top:3px}
+.lanyard-avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid #ff174d55;box-shadow:0 0 18px #ff174d33}
+.lanyard-chip{margin-top:10px;border:1px solid #26262d;border-radius:14px;background:#111116cc;color:#ddd;padding:10px 12px;font-size:12px;line-height:1.35;text-align:center;letter-spacing:.5px}
+.lanyard-muted{color:#777;text-align:center;font-size:12px;letter-spacing:1px}.spotify-box{margin-top:10px;display:flex;align-items:center;gap:12px;border:1px solid #1f5b37;border-radius:16px;background:#06140dcc;padding:10px;color:#eafff1}.spotify-box img{width:54px;height:54px;border-radius:10px;object-fit:cover}.spotify-box b{display:block;color:#22ff88;font-size:12px;letter-spacing:1px}.spotify-box span{display:block;color:#d7ffdf;font-size:12px;line-height:1.35;margin-top:3px}
