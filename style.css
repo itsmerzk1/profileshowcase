@@ -308,3 +308,32 @@
 
 /* Cloud save status */
 .cloud-status{grid-column:1/-1;margin:0;color:#aaa;font-size:12px;letter-spacing:1px;text-align:center}.cloud-status.cloud-ok{color:#22ff88;text-shadow:0 0 12px #22ff8844}.cloud-status.cloud-bad{color:#ff6b86;text-shadow:0 0 12px #ff174d44}
+
+
+/* FINAL STATUS COLOR FIX - Discord/Lanyard status colors on profile page */
+.profile-status.status-online{
+  color:#22ff88!important;
+  text-shadow:0 0 14px rgba(34,255,136,.55)!important;
+}
+.profile-status.status-idle{
+  color:#facc15!important;
+  text-shadow:0 0 14px rgba(250,204,21,.45)!important;
+}
+.profile-status.status-dnd{
+  color:#ff315c!important;
+  text-shadow:0 0 14px rgba(255,49,92,.55)!important;
+}
+.profile-status.status-offline{
+  color:#8b8490!important;
+  text-shadow:0 0 10px rgba(139,132,144,.25)!important;
+}
+.profile-status.status-online::first-letter{color:#22ff88!important;}
+.profile-status.status-idle::first-letter{color:#facc15!important;}
+.profile-status.status-dnd::first-letter{color:#ff315c!important;}
+.profile-status.status-offline::first-letter{color:#8b8490!important;}
+
+/* homepage/member cards: match the same live colors */
+.status-online .member-role{color:#22ff88!important;text-shadow:0 0 12px rgba(34,255,136,.5)!important;}
+.status-idle .member-role{color:#facc15!important;text-shadow:0 0 12px rgba(250,204,21,.45)!important;}
+.status-dnd .member-role{color:#ff315c!important;text-shadow:0 0 12px rgba(255,49,92,.5)!important;}
+.status-offline .member-role{color:#8b8490!important;text-shadow:none!important;}
