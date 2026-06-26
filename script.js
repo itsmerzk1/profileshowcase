@@ -35,9 +35,11 @@ const store={
   set settings(v){localStorage.okdSettings=JSON.stringify(v); queueCloudSave();}
 };
 
-// Optional free cloud sync: Firebase Realtime Database.
-// LocalStorage only updates your own browser. Firebase makes updates visible to every visitor.
+// Optional free cloud sync: Firebase Firestore.
+// LocalStorage only updates your own browser. Firestore makes updates visible to every visitor.
 let cloudRef=null, applyingCloud=false, cloudSaveTimer=null;
+let cloudReady=false;
+function updateCloudStatus(text, ok=false){ const el=$('#cloudStatus'); if(el){ el.textContent=text; el.className='cloud-status '+(ok?'cloud-ok':'cloud-bad'); } }
 function firebaseConfigured(){
   const cfg=window.FIREBASE_CONFIG||window.firebaseConfig||{};
   return !!(cfg.apiKey && cfg.projectId && !String(cfg.apiKey).includes('PASTE_') && window.firebase && firebase.apps !== undefined && firebase.firestore);
@@ -52,10 +54,25 @@ function applyState(state){
   render(); fetchLanyardPresence();
   if(!$('#app').classList.contains('hidden') && $('#profileView').classList.contains('hidden')) setupAudio(true);
 }
+async function saveCloudNow(silent=false){
+  if(applyingCloud || !ownerUnlocked) return false;
+  if(!cloudRef){ updateCloudStatus('Cloud: not connected. Check firebase-config.js / Firestore.', false); if(!silent) alert('Cloud is not connected. Check firebase-config.js, Firestore rules, and redeploy.'); return false; }
+  try{
+    updateCloudStatus('Cloud: saving...', false);
+    await cloudRef.set(currentState(), {merge:false});
+    updateCloudStatus('Cloud: saved / public', true);
+    return true;
+  }catch(err){
+    console.error(err);
+    updateCloudStatus('Cloud: save failed. Check Firestore rules.', false);
+    if(!silent) alert('Cloud save failed. Check Firestore rules or connection.');
+    return false;
+  }
+}
 function queueCloudSave(){
   if(applyingCloud || !cloudRef || !ownerUnlocked) return;
   clearTimeout(cloudSaveTimer);
-  cloudSaveTimer=setTimeout(()=>cloudRef.set(currentState()).catch(err=>{console.error(err); alert('Cloud save failed. Check Firestore rules or connection.');}),250);
+  cloudSaveTimer=setTimeout(()=>saveCloudNow(true),250);
 }
 function initCloudSync(){
   try{
@@ -63,13 +80,15 @@ function initCloudSync(){
     const cfg = window.FIREBASE_CONFIG || window.firebaseConfig;
     if(!firebase.apps.length) firebase.initializeApp(cfg);
     cloudRef=firebase.firestore().collection('teamokd').doc('publicShowcase');
+    cloudReady=true;
+    updateCloudStatus('Cloud: connected', true);
     initVisitorAnalytics();
     cloudRef.onSnapshot(snap=>{
       const state=snap.exists ? snap.data() : null;
       if(state) applyState(state);
       else if(ownerUnlocked) queueCloudSave();
     });
-  }catch(e){ console.warn('Firebase cloud sync disabled:', e); }
+  }catch(e){ updateCloudStatus('Cloud: disabled / config error', false); console.warn('Firebase cloud sync disabled:', e); }
 }
 
 
@@ -291,7 +310,8 @@ $('#memberForm').onsubmit=async e=>{
     }
     const idx=members.findIndex(x=>x.id===id); idx>=0?members[idx]=m:members.push(m);
     store.members=members; e.target.reset(); $('#editId').value=''; if($('#profileMusicUpload')) $('#profileMusicUpload').value=''; render();
-    alert(file ? 'Member saved. Uploaded music is local only; use Discord/direct audio URL if visitors must hear it.' : 'Member saved.');
+    await saveCloudNow(true);
+    alert(file ? 'Member saved and published. Uploaded music is local only; use Discord/direct audio URL if visitors must hear it.' : 'Member saved and published.');
   }catch(err){ alert(err.message || 'Profile music upload failed.'); }
 }
 $('#saveSite').onclick=async()=>{
@@ -307,9 +327,12 @@ $('#saveSite').onclick=async()=>{
     store.settings={music,bg:$('#globalBg').value.trim()};
     if($('#musicUpload')) $('#musicUpload').value='';
     setupAudio(); render();
-    alert(file ? 'Site music uploaded in this browser only. Use Discord/direct audio URL if visitors must hear it.' : 'Site settings saved.');
+    await saveCloudNow(true);
+    alert(file ? 'Site settings saved and published. Uploaded music is local only; use Discord/direct audio URL if visitors must hear it.' : 'Site settings saved and published.');
   }catch(err){ alert(err.message || 'Music upload failed.'); }
-}; $('#resetData').onclick=async()=>{if(!requireOwner())return; if(!confirm('Reset all demo data?'))return; localStorage.removeItem('okdMembers');localStorage.removeItem('okdSettings'); try{ await idbDelete('siteMusic'); }catch(e){} render(); queueCloudSave();};
+};
+$('#saveCloudNow').onclick=async()=>{ if(!requireOwner())return; const ok=await saveCloudNow(false); if(ok) alert('Published to Firebase. Visitors will see this showcase/profile data.'); };
+$('#resetData').onclick=async()=>{if(!requireOwner())return; if(!confirm('Reset all demo data?'))return; localStorage.removeItem('okdMembers');localStorage.removeItem('okdSettings'); try{ await idbDelete('siteMusic'); }catch(e){} render(); await saveCloudNow(true);};
 $('#adminToggle').onclick=()=>{ $('#adminPanel').classList.toggle('hidden'); updateOwnerUI(); }; $('#closeAdmin').onclick=()=>$('#adminPanel').classList.add('hidden'); $('#backBtn').onclick=()=>{ currentProfileId=null; $('#profileView').classList.add('hidden'); setupAudio(true); };
 $('#ownerLoginBtn').onclick=()=>{ const pass=$('#ownerPass').value; if(pass===OWNER_PASSCODE){ ownerUnlocked=true; sessionStorage.setItem('okdOwnerUnlocked','yes'); $('#ownerPass').value=''; renderAdmin(); } else { alert('Wrong owner passcode.'); } };
 $('#ownerLogoutBtn').onclick=()=>{ ownerUnlocked=false; sessionStorage.removeItem('okdOwnerUnlocked'); renderAdmin(); };
