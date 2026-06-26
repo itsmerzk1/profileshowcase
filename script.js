@@ -63,6 +63,7 @@ function initCloudSync(){
     const cfg = window.FIREBASE_CONFIG || window.firebaseConfig;
     if(!firebase.apps.length) firebase.initializeApp(cfg);
     cloudRef=firebase.firestore().collection('teamokd').doc('publicShowcase');
+    initVisitorAnalytics();
     cloudRef.onSnapshot(snap=>{
       const state=snap.exists ? snap.data() : null;
       if(state) applyState(state);
@@ -239,6 +240,7 @@ function linkFor(type,val){
 function render(){const members=store.members, settings=store.settings; $('#memberCount').textContent=members.length; document.body.style.backgroundImage=settings.bg?`radial-gradient(circle at 50% 15%,#22040d55,#000 60%),url(${settings.bg})`:''; $('#featuredMembers').innerHTML=''; $('#memberGrid').innerHTML=''; members.forEach((m,i)=>{const card=document.createElement('div'); card.className='member-card '+(i<2?'featured':''); card.dataset.memberId=m.id; const pres=presenceFor(m); const st=pres?statusClass(pres.discord_status):'offline'; card.classList.add(`status-${st}`); card.innerHTML=`<div class="watermark">TEAM OKD</div><div class="edit-dot">★</div><div class="member-content"><img class="avatar" src="${avatarForMember(m,pres)}" alt="${escapeHTML(m.name)} avatar"><div class="member-name">${m.name}</div><div class="member-title">${m.role||'MEMBER'}</div><div class="member-role">${statusEmoji(st)} ${statusText(st)}</div><div class="member-activity">${cardPresenceHTML(pres)}</div></div>`; card.onclick=()=>openProfile(m.id); (i<2?$('#featuredMembers'):$('#memberGrid')).appendChild(card);}); renderAdmin();}
 function openProfile(id){
   const m=store.members.find(x=>x.id===id); if(!m)return;
+  trackVisit('profile', m.name || id);
   currentProfileId = id;
   const pres=presenceFor(m);
   const st=pres?statusClass(pres.discord_status):'offline';
@@ -360,8 +362,130 @@ async function setupAudio(play=false){
 }
 function clock(){const d=new Date(); $('#timeNow').textContent=d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); $('#dateNow').textContent=d.toLocaleDateString([], {weekday:'long',month:'short',day:'numeric'}).toUpperCase();} setInterval(clock,1000); clock();
 localStorage.okdVisits=(+(localStorage.okdVisits||0)+1); $('#visitCount').textContent=localStorage.okdVisits;
+trackVisit('home', 'Home');
 const c=$('#particles'),ctx=c.getContext('2d'); let ps=[]; function size(){c.width=innerWidth;c.height=innerHeight;ps=Array.from({length:95},()=>({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*2+0.4,s:Math.random()*0.6+0.15,a:Math.random()}));} addEventListener('resize',size); size(); function anim(){ctx.clearRect(0,0,c.width,c.height); ps.forEach(p=>{p.y-=p.s;if(p.y<0)p.y=c.height; ctx.globalAlpha=p.a; ctx.fillStyle=Math.random()>.88?'#ff174d':'#7b1025'; ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();}); requestAnimationFrame(anim)} anim();
 initCloudSync();
 render();
 fetchLanyardPresence();
 setInterval(fetchLanyardPresence, 30000);
+
+
+/* TEAM OKD Visitor Analytics + owner-only IP security log
+   Stores IP + approximate location in Firestore for security purposes. */
+const VISITOR_SESSION_KEY = 'okdVisitorId';
+let visitorLogUnsub = null;
+let visitorHeartbeatTimer = null;
+let visitorNetworkInfoPromise = null;
+async function getVisitorNetworkInfo(){
+  if(visitorNetworkInfoPromise) return visitorNetworkInfoPromise;
+  visitorNetworkInfoPromise = (async()=>{
+    try{
+      const res = await fetch('https://ipapi.co/json/', {cache:'no-store'});
+      if(!res.ok) throw new Error('IP lookup failed');
+      const d = await res.json();
+      return { ip: d.ip || '', country: d.country_name || d.country || '', city: d.city || '', region: d.region || '', isp: d.org || d.asn || '' };
+    }catch(e){
+      try{
+        const res = await fetch('https://api.ipify.org?format=json', {cache:'no-store'});
+        const d = await res.json();
+        return {ip:d.ip||'', country:'', city:'', region:'', isp:''};
+      }catch(_){ return {ip:'', country:'', city:'', region:'', isp:''}; }
+    }
+  })();
+  return visitorNetworkInfoPromise;
+}
+function getVisitorId(){
+  let id = localStorage.getItem(VISITOR_SESSION_KEY);
+  if(!id){ id = (crypto.randomUUID ? crypto.randomUUID() : 'v_'+Date.now()+'_'+Math.random().toString(16).slice(2)); localStorage.setItem(VISITOR_SESSION_KEY,id); }
+  return id;
+}
+function browserInfo(){
+  const ua = navigator.userAgent || '';
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+  const os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Mac OS/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : 'Unknown OS';
+  const device = /Mobi|Android|iPhone|iPad|iPod/.test(ua) ? 'Mobile' : 'Desktop';
+  return { browser, os, device };
+}
+function visitorDb(){
+  try{
+    if(!firebaseConfigured()) return null;
+    if(!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG || window.firebaseConfig);
+    return firebase.firestore();
+  }catch(e){ return null; }
+}
+async function visitorPayload(type='home', profile='Home'){
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Unknown';
+  const network = await getVisitorNetworkInfo();
+  return {
+    visitorId:getVisitorId(), type, profile, path:location.pathname || '/',
+    ...browserInfo(), ...network, timezone:tz,
+    lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    dayKey: new Date().toISOString().slice(0,10)
+  };
+}
+async function trackVisit(type='home', profile='Home'){
+  const db = visitorDb(); if(!db) return;
+  try{
+    const payload = await visitorPayload(type, profile);
+    await db.collection('teamokd_visits').add(payload);
+    await db.collection('teamokd_online').doc(getVisitorId()).set({
+      visitorId:getVisitorId(), path:location.pathname || '/', profile, type,
+      ...browserInfo(), ...(await getVisitorNetworkInfo()), timezone:Intl.DateTimeFormat().resolvedOptions().timeZone || 'Unknown',
+      lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+    }, {merge:true});
+    updateVisitCountFromCloud();
+  }catch(e){ console.warn('Visitor analytics disabled:', e); }
+}
+async function updateVisitCountFromCloud(){
+  const db = visitorDb(); if(!db) return;
+  try{
+    const snap = await db.collection('teamokd_visits').limit(1000).get();
+    const total = snap.size;
+    const el=$('#visitCount'); if(el && total) el.textContent=total;
+  }catch(e){}
+}
+function initVisitorAnalytics(){
+  const db = visitorDb(); if(!db) return;
+  if(visitorHeartbeatTimer) clearInterval(visitorHeartbeatTimer);
+  visitorHeartbeatTimer = setInterval(()=>{
+    getVisitorNetworkInfo().then(net=>db.collection('teamokd_online').doc(getVisitorId()).set({lastSeen:firebase.firestore.FieldValue.serverTimestamp(), path:location.pathname || '/', ...browserInfo(), ...net}, {merge:true})).catch(()=>{});
+  }, 30000);
+  if(ownerUnlocked) startOwnerVisitorDashboard();
+}
+function fmtTime(ts){
+  try{ const d = ts?.toDate ? ts.toDate() : new Date(); return d.toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return 'now'; }
+}
+async function loadVisitorDashboard(){
+  const db = visitorDb(); if(!db || !ownerUnlocked) return;
+  try{
+    const today = new Date().toISOString().slice(0,10);
+    const recent = await db.collection('teamokd_visits').orderBy('createdAt','desc').limit(80).get();
+    const docs = recent.docs.map(d=>({id:d.id,...d.data()}));
+    const totalSnap = await db.collection('teamokd_visits').limit(1000).get();
+    const total = totalSnap.size;
+    const todayCount = docs.filter(v=>v.dayKey===today).length;
+    const cutoff = Date.now() - 2*60*1000;
+    const onlineSnap = await db.collection('teamokd_online').get();
+    let online = 0;
+    onlineSnap.forEach(d=>{ const v=d.data(); const t=v.lastSeen?.toDate ? v.lastSeen.toDate().getTime() : 0; if(t>cutoff) online++; });
+    const counts={}; docs.forEach(v=>{ if(v.profile && v.profile!=='Home') counts[v.profile]=(counts[v.profile]||0)+1; });
+    const top = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
+    const set=(id,val)=>{ const el=$(id); if(el) el.textContent=val; };
+    set('#dashTotalVisits', total); set('#dashTodayVisits', todayCount); set('#dashOnlineNow', online); set('#onlineCount', online); set('#dashTopProfile', top);
+    const log=$('#visitorLog');
+    if(log){
+      log.innerHTML = docs.length ? docs.slice(0,50).map(v=>`<div class="visitor-row"><div><b>${escapeHTML(v.profile||'Home')}</b><span>${escapeHTML(v.type||'visit')} · ${escapeHTML(v.path||'/')}</span></div><div><b>${escapeHTML(v.ip||'No IP')}</b><span>${escapeHTML([v.city,v.country].filter(Boolean).join(', ') || 'Unknown location')} · ${escapeHTML(v.isp||'')}</span></div><div><b>${escapeHTML(v.device||'Device')}</b><span>${escapeHTML(v.browser||'Browser')} · ${escapeHTML(v.os||'OS')}</span></div><time>${fmtTime(v.createdAt)}</time></div>`).join('') : '<p class="hint">No visitor logs yet.</p>';
+    }
+  }catch(e){ const log=$('#visitorLog'); if(log) log.innerHTML='<p class="hint">Could not load visitors. Check Firestore rules.</p>'; console.warn(e); }
+}
+function startOwnerVisitorDashboard(){
+  const db=visitorDb(); if(!db || visitorLogUnsub) return;
+  loadVisitorDashboard();
+  visitorLogUnsub = db.collection('teamokd_visits').orderBy('createdAt','desc').limit(20).onSnapshot(()=>loadVisitorDashboard(), err=>console.warn(err));
+}
+const oldUpdateOwnerUI = updateOwnerUI;
+updateOwnerUI = function(){ oldUpdateOwnerUI(); if(ownerUnlocked) startOwnerVisitorDashboard(); };
+setInterval(()=>{ if(ownerUnlocked) loadVisitorDashboard(); }, 45000);
+setTimeout(()=>updateVisitCountFromCloud(), 1500);
+setTimeout(()=>{ const b=$('#refreshVisitors'); if(b) b.onclick=loadVisitorDashboard; }, 500);
