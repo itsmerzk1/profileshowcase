@@ -50,6 +50,8 @@
         <img id="profileAvatar" class="profile-avatar" src="" alt="avatar">
         <h2 id="profileName"></h2>
         <p id="profileSlug"></p>
+        <p id="profileStatus" class="profile-status status-offline">● OFFLINE</p>
+        <p id="profileActivity" class="profile-activity"></p>
         <div id="profileBio" class="bio-pill"></div>
         <div id="socialLinks" class="social-links"></div>
       </div>
@@ -69,7 +71,7 @@
         <button id="ownerLoginBtn" class="red-btn" type="button">Unlock Owner Panel</button>
       </div>
       <div id="ownerTools" class="hidden">
-      <p class="hint">Owner mode unlocked. Edits sync to all visitors when Firebase is configured. Use direct MP3/WAV/OGG or Discord CDN links for music that everyone can hear.</p>
+      <p class="hint">Owner mode unlocked. Edits sync to all visitors when Firebase is configured. Use direct MP3/WAV/OGG or Discord CDN links for music that everyone can hear. Add numeric Discord User ID for Lanyard live status.</p>
       <div class="admin-grid">
         <label>Site Music URL <input id="musicUrl" placeholder="music/main.mp3, direct .mp3/.wav/.ogg, or Discord CDN audio link"></label>
         <label>Upload Site Music <input id="musicUpload" type="file" accept="audio/*"></label>
@@ -88,7 +90,8 @@
         <input id="profileMusic" placeholder="Profile Music URL, e.g. music/member.mp3 or Discord CDN audio link">
         <label class="file-label">Upload Profile Music <input id="profileMusicUpload" type="file" accept="audio/*"></label>
         <textarea id="bio" placeholder="Bio"></textarea>
-        <input id="discord" placeholder="Discord ID">
+        <input id="discord" placeholder="Discord tag/name e.g. RZK1#0001">
+        <input id="lanyardId" placeholder="Discord User ID for Lanyard live status e.g. 123456789012345678">
         <input id="kick" placeholder="Kick URL or username">
         <input id="twitch" placeholder="Twitch URL or username">
         <input id="tiktok" placeholder="TikTok URL or username">
