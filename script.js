@@ -202,6 +202,54 @@ function initCloudSync(){
 }
 
 
+// Extra public loader: REST fallback/source-of-truth for visitors.
+// This bypasses localStorage and Firebase SDK cache issues. If Firestore contains
+// teamokd/publicShowcase, every browser should render the same public members.
+function firestoreRestValue(v){
+  if(!v || typeof v !== 'object') return null;
+  if('stringValue' in v) return v.stringValue;
+  if('integerValue' in v) return Number(v.integerValue);
+  if('doubleValue' in v) return Number(v.doubleValue);
+  if('booleanValue' in v) return !!v.booleanValue;
+  if('timestampValue' in v) return v.timestampValue;
+  if('nullValue' in v) return null;
+  if('arrayValue' in v){
+    return (v.arrayValue.values || []).map(firestoreRestValue);
+  }
+  if('mapValue' in v){
+    const out={};
+    const fields=v.mapValue.fields || {};
+    Object.keys(fields).forEach(k=>out[k]=firestoreRestValue(fields[k]));
+    return out;
+  }
+  return null;
+}
+function firestoreRestDocToObject(doc){
+  const out={};
+  const fields=(doc && doc.fields) || {};
+  Object.keys(fields).forEach(k=>out[k]=firestoreRestValue(fields[k]));
+  return out;
+}
+async function loadPublicShowcaseREST(){
+  try{
+    const cfg = window.FIREBASE_CONFIG || window.firebaseConfig || {};
+    if(!cfg.projectId || !cfg.apiKey) return false;
+    const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(cfg.projectId)}/databases/(default)/documents/teamokd/publicShowcase?key=${encodeURIComponent(cfg.apiKey)}&t=${Date.now()}`;
+    const res = await fetch(url, {cache:'no-store'});
+    if(!res.ok) throw new Error('REST Firestore read failed: '+res.status);
+    const doc = await res.json();
+    const state = firestoreRestDocToObject(doc);
+    const normalized = normalizeCloudState(state);
+    if(normalized && Array.isArray(normalized.members) && normalized.members.length){
+      applyState(normalized);
+      updateCloudStatus('Cloud: public data loaded via REST', true);
+      return true;
+    }
+  }catch(e){ console.warn('REST public load failed:', e); }
+  return false;
+}
+
+
 const socialIcons={
   discord:`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.3 4.4A16.9 16.9 0 0 0 16.1 3l-.2.3c1.5.4 2.2 1 2.2 1s-1.9-1-4.2-1.2a14.7 14.7 0 0 0-4.8.3c-.2 0-.4.1-.6.2-.9.2-1.8.5-2.7 1 0 0 .7-.7 2.3-1l-.2-.3a16.9 16.9 0 0 0-4.2 1.5C1.1 8.5.5 12.1.8 15.7A16.8 16.8 0 0 0 6 18.3l.6-.8c-1.1-.4-2.1-1.1-3-2 0 0 .2.1.5.3 0 0 0 0 .1.1.1 0 .2.1.3.2.8.4 1.6.8 2.4 1 .7.2 1.5.4 2.3.5 1.5.2 3.2.2 4.8 0 .8-.1 1.5-.3 2.3-.5 1.1-.3 2.3-.9 3.4-1.6-.9.9-1.9 1.5-3 2l.6.8a16.7 16.7 0 0 0 5.2-2.6c.4-4.2-.6-7.8-2.2-11.3ZM8.4 14.2c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7.2 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>`,
   kick:`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h6v6h2V7h2V5h6v6h-2v2h2v6h-6v-2h-2v-2h-2v4H4V3Z"/></svg>`,
@@ -504,12 +552,12 @@ localStorage.okdVisits=(+(localStorage.okdVisits||0)+1); $('#visitCount').textCo
 trackVisit('home', 'Home');
 const c=$('#particles'),ctx=c.getContext('2d'); let ps=[]; function size(){c.width=innerWidth;c.height=innerHeight;ps=Array.from({length:95},()=>({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*2+0.4,s:Math.random()*0.6+0.15,a:Math.random()}));} addEventListener('resize',size); size(); function anim(){ctx.clearRect(0,0,c.width,c.height); ps.forEach(p=>{p.y-=p.s;if(p.y<0)p.y=c.height; ctx.globalAlpha=p.a; ctx.fillStyle=Math.random()>.88?'#ff174d':'#7b1025'; ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();}); requestAnimationFrame(anim)} anim();
 initCloudSync();
-render();
+loadPublicShowcaseREST().then(ok=>{ if(!ok) render(); });
 // Public debug helper: open console and run OKD_DEBUG() to confirm what this browser loaded.
 window.OKD_DEBUG = async function(){
   const out = { localMembers: store.members, localSettings: store.settings, firebaseConfigured: firebaseConfigured(), cloudReady };
   try{ if(cloudRef){ const snap = await cloudRef.get({source:'server'}); out.firestore = snap.exists ? snap.data() : null; } }catch(e){ out.firestoreError = String(e && e.message || e); }
-  console.log('TEAM OKD DEBUG', out); return out;
+  try{ out.rest = await loadPublicShowcaseREST(); }catch(e){} console.log('TEAM OKD DEBUG', out); return out;
 };
 
 fetchLanyardPresence();
