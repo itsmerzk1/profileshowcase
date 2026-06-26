@@ -1,10 +1,6 @@
 const $=s=>document.querySelector(s); const $$=s=>document.querySelectorAll(s);
 const demo=[
-{id:'rzk1',name:'RZK1',role:'OWNER',bio:'TEAM OKD founder. Black and red premium energy.',avatar:'https://api.dicebear.com/9.x/initials/svg?seed=RZK1&backgroundColor=111111&textColor=ff174d',background:'',discord:'RZK1#0001',kick:'itsmerobzkiii',twitch:'itsmerobzkiii',tiktok:'@itsmerzk1',roblox:'RZK1',facebook:'',instagram:'',profileMusic:''},
-{id:'okd2',name:'Kcian',role:'BOSS',bio:'OKD main member.',avatar:'https://api.dicebear.com/9.x/initials/svg?seed=K&backgroundColor=222222&textColor=ff174d',background:'',discord:'',kick:'',twitch:'',tiktok:'',roblox:'',facebook:'',instagram:'',profileMusic:''},
-{id:'okd3',name:'Charm',role:'MEMBER',bio:'eaaboo worldwide',avatar:'https://api.dicebear.com/9.x/initials/svg?seed=C&backgroundColor=222222&textColor=ff174d',background:'',discord:'',kick:'',twitch:'',tiktok:'',roblox:'',facebook:'',instagram:'',profileMusic:''},
-{id:'okd4',name:'Irxs',role:'MEMBER',bio:'Offline',avatar:'https://api.dicebear.com/9.x/initials/svg?seed=I&backgroundColor=222222&textColor=ff174d',background:'',discord:'',kick:'',twitch:'',tiktok:'',roblox:'',facebook:'',instagram:'',profileMusic:''},
-{id:'okd5',name:'Mika',role:'MEMBER',bio:'Offline',avatar:'https://api.dicebear.com/9.x/initials/svg?seed=M&backgroundColor=222222&textColor=ff174d',background:'',discord:'',kick:'',twitch:'',tiktok:'',roblox:'',facebook:'',instagram:'',profileMusic:''}
+{id:'rzk1',name:'RZK1',role:'OWNER',bio:'TEAM OKD founder. Black and red premium energy.',avatar:'https://api.dicebear.com/9.x/initials/svg?seed=RZK1&backgroundColor=111111&textColor=ff174d',background:'',discord:'RZK1#0001',lanyardId:'',kick:'itsmerobzkiii',twitch:'itsmerobzkiii',tiktok:'@itsmerzk1',roblox:'RZK1',facebook:'',instagram:'',profileMusic:''}
 ];
 const defaultBg='linear-gradient(120deg,#050505,#16030a,#020202)';
 // Change this passcode before uploading your site. Static sites cannot have perfect security, but this locks the editor for normal visitors.
@@ -49,7 +45,7 @@ function applyState(state){
   if(Array.isArray(state.members)) localStorage.okdMembers=JSON.stringify(state.members);
   if(state.settings) localStorage.okdSettings=JSON.stringify({...DEFAULT_SETTINGS,...state.settings});
   applyingCloud=false;
-  render();
+  render(); fetchLanyardPresence();
   if(!$('#app').classList.contains('hidden') && $('#profileView').classList.contains('hidden')) setupAudio(true);
 }
 function queueCloudSave(){
@@ -90,6 +86,59 @@ function socialButton(type,value,href){
     : `<span class="social-icon ${type}" title="${label}" aria-label="${label}">${icon}</span>`;
 }
 
+
+
+// Lanyard Discord presence integration
+// Add each member's numeric Discord User ID in Owner Panel. That user must be in the Lanyard Discord server.
+const lanyardState = {};
+function isValidDiscordSnowflake(id){ return /^\d{17,20}$/.test(String(id||'').trim()); }
+function getMemberDiscordId(m){ return String(m.lanyardId || (isValidDiscordSnowflake(m.discord) ? m.discord : '') || '').trim(); }
+function statusText(status){
+  return ({online:'ONLINE', idle:'IDLE', dnd:'DND', offline:'OFFLINE'})[status] || 'OFFLINE';
+}
+function statusClass(status){ return ['online','idle','dnd','offline'].includes(status) ? status : 'offline'; }
+function presenceFor(m){
+  const id = getMemberDiscordId(m);
+  return id && lanyardState[id] ? lanyardState[id] : null;
+}
+function spotifyText(p){
+  if(!p || !p.listening_to_spotify || !p.spotify) return '';
+  return `${p.spotify.song || p.spotify.track_name || 'Spotify'} - ${p.spotify.artist || p.spotify.artist_name || ''}`.trim();
+}
+async function fetchLanyardPresence(){
+  const members = store.members || [];
+  const ids = [...new Set(members.map(getMemberDiscordId).filter(isValidDiscordSnowflake))];
+  if(!ids.length) return;
+  await Promise.all(ids.map(async id=>{
+    try{
+      const res = await fetch(`https://api.lanyard.rest/v1/users/${id}`, {cache:'no-store'});
+      const json = await res.json();
+      if(json && json.success && json.data){ lanyardState[id] = json.data; }
+    }catch(e){ console.warn('Lanyard failed for', id, e); }
+  }));
+  updatePresenceUI();
+}
+function updatePresenceUI(){
+  (store.members||[]).forEach(m=>{
+    const p = presenceFor(m);
+    const st = p ? statusClass(p.discord_status) : 'offline';
+    document.querySelectorAll(`[data-member-id="${m.id}"]`).forEach(el=>{
+      el.classList.remove('status-online','status-idle','status-dnd','status-offline');
+      el.classList.add(`status-${st}`);
+      const role = el.querySelector('.member-role');
+      if(role){ role.textContent = `● ${statusText(st)}`; }
+      const activity = el.querySelector('.member-activity');
+      if(activity){ activity.textContent = spotifyText(p) || (p?.activities?.[0]?.name ? p.activities[0].name : ''); }
+    });
+    if(!document.querySelector('#profileView')?.classList.contains('hidden') && document.querySelector('#profileName')?.textContent === m.name){
+      const statusEl=document.querySelector('#profileStatus');
+      if(statusEl){ statusEl.textContent=`● ${statusText(st)}`; statusEl.className=`profile-status status-${st}`; }
+      const act=document.querySelector('#profileActivity');
+      if(act){ act.textContent = spotifyText(p) || (p?.activities?.[0]?.name ? `Activity: ${p.activities[0].name}` : ''); }
+    }
+  });
+}
+
 function linkFor(type,val){
   if(!val) return '';
   if(String(val).startsWith('http')) return val;
@@ -104,12 +153,12 @@ function linkFor(type,val){
   };
   return map[type]||'';
 }
-function render(){const members=store.members, settings=store.settings; $('#memberCount').textContent=members.length; document.body.style.backgroundImage=settings.bg?`radial-gradient(circle at 50% 15%,#22040d55,#000 60%),url(${settings.bg})`:''; $('#featuredMembers').innerHTML=''; $('#memberGrid').innerHTML=''; members.forEach((m,i)=>{const card=document.createElement('div'); card.className='member-card '+(i<2?'featured':''); card.innerHTML=`<div class="watermark">TEAM OKD</div><div class="edit-dot">★</div><div class="member-content"><img class="avatar" src="${m.avatar||`https://api.dicebear.com/9.x/initials/svg?seed=${m.name}`}"><div class="member-name">${m.name}</div><div class="member-role">● ${m.role||'Offline'}</div></div>`; card.onclick=()=>openProfile(m.id); (i<2?$('#featuredMembers'):$('#memberGrid')).appendChild(card);}); renderAdmin();}
+function render(){const members=store.members, settings=store.settings; $('#memberCount').textContent=members.length; document.body.style.backgroundImage=settings.bg?`radial-gradient(circle at 50% 15%,#22040d55,#000 60%),url(${settings.bg})`:''; $('#featuredMembers').innerHTML=''; $('#memberGrid').innerHTML=''; members.forEach((m,i)=>{const card=document.createElement('div'); card.className='member-card '+(i<2?'featured':''); card.dataset.memberId=m.id; const pres=presenceFor(m); const st=pres?statusClass(pres.discord_status):'offline'; card.classList.add(`status-${st}`); card.innerHTML=`<div class="watermark">TEAM OKD</div><div class="edit-dot">★</div><div class="member-content"><img class="avatar" src="${m.avatar||`https://api.dicebear.com/9.x/initials/svg?seed=${m.name}`}"><div class="member-name">${m.name}</div><div class="member-title">${m.role||'MEMBER'}</div><div class="member-role">● ${statusText(st)}</div><div class="member-activity">${spotifyText(pres)}</div></div>`; card.onclick=()=>openProfile(m.id); (i<2?$('#featuredMembers'):$('#memberGrid')).appendChild(card);}); renderAdmin();}
 function openProfile(id){
   const m=store.members.find(x=>x.id===id); if(!m)return;
   $('#profileAvatar').src=m.avatar||`https://api.dicebear.com/9.x/initials/svg?seed=${m.name}`;
   $('#profileName').textContent=m.name;
-  $('#profileSlug').textContent=`team-okd.vercel.app/${m.name.toLowerCase().replaceAll(' ','-')}  |  ${m.role||'OFFLINE'}`;
+  $('#profileSlug').textContent=`team-okd.vercel.app/${m.name.toLowerCase().replaceAll(' ','-')}  |  ${m.role||'MEMBER'}`; const pres=presenceFor(m); const st=pres?statusClass(pres.discord_status):'offline'; $('#profileStatus').textContent=`● ${statusText(st)}`; $('#profileStatus').className=`profile-status status-${st}`; $('#profileActivity').textContent=spotifyText(pres) || (pres?.activities?.[0]?.name ? `Activity: ${pres.activities[0].name}` : '');
   $('#profileBio').textContent=m.bio||'TEAM OKD member';
   $('#profileBg').style.backgroundImage=m.background?`url(${m.background})`:defaultBg;
   const socials=['discord','kick','twitch','tiktok','roblox','facebook','instagram'];
@@ -136,12 +185,12 @@ function renderAdmin(){
   box.innerHTML=store.members.map(m=>`<div class="admin-row"><b>${m.name}</b><span><button onclick="editMember('${m.id}')">Edit</button><button onclick="removeMember('${m.id}')">Remove</button></span></div>`).join('');
   $('#musicUrl').value=store.settings.music||''; $('#globalBg').value=store.settings.bg||'';
 }
-window.editMember=id=>{if(!requireOwner())return; const m=store.members.find(x=>x.id===id); ['id','name','role','avatar','background','profileMusic','bio','discord','kick','twitch','tiktok','roblox','facebook','instagram'].forEach(k=>{const el=$('#'+(k==='id'?'editId':k)); if(el)el.value=m[k]||''});}
+window.editMember=id=>{if(!requireOwner())return; const m=store.members.find(x=>x.id===id); ['id','name','role','avatar','background','profileMusic','bio','discord','lanyardId','kick','twitch','tiktok','roblox','facebook','instagram'].forEach(k=>{const el=$('#'+(k==='id'?'editId':k)); if(el)el.value=m[k]||''});}
 window.removeMember=id=>{if(!requireOwner())return; if(!confirm('Remove this member?'))return; store.members=store.members.filter(m=>m.id!==id); render();}
 $('#memberForm').onsubmit=async e=>{
   e.preventDefault(); if(!requireOwner())return;
   let members=store.members; const id=$('#editId').value||crypto.randomUUID(); const m={id};
-  ['name','role','avatar','background','profileMusic','bio','discord','kick','twitch','tiktok','roblox','facebook','instagram'].forEach(k=>m[k]=$('#'+k).value.trim());
+  ['name','role','avatar','background','profileMusic','bio','discord','lanyardId','kick','twitch','tiktok','roblox','facebook','instagram'].forEach(k=>m[k]=$('#'+k).value.trim());
   const file=$('#profileMusicUpload')?.files?.[0];
   try{
     if(file){
@@ -226,3 +275,5 @@ localStorage.okdVisits=(+(localStorage.okdVisits||0)+1); $('#visitCount').textCo
 const c=$('#particles'),ctx=c.getContext('2d'); let ps=[]; function size(){c.width=innerWidth;c.height=innerHeight;ps=Array.from({length:95},()=>({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*2+0.4,s:Math.random()*0.6+0.15,a:Math.random()}));} addEventListener('resize',size); size(); function anim(){ctx.clearRect(0,0,c.width,c.height); ps.forEach(p=>{p.y-=p.s;if(p.y<0)p.y=c.height; ctx.globalAlpha=p.a; ctx.fillStyle=Math.random()>.88?'#ff174d':'#7b1025'; ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();}); requestAnimationFrame(anim)} anim();
 initCloudSync();
 render();
+fetchLanyardPresence();
+setInterval(fetchLanyardPresence, 30000);
