@@ -16,3 +16,14 @@
 .member-name,.member-role{text-align:center;width:100%;}
 .hidden-audio{display:none!important;}
 .music-player,.profile-music-actions{display:none!important;}
+
+
+/* Lanyard Discord live status */
+.member-title{color:#e6e1e5;font-size:12px;letter-spacing:2px;text-align:center;margin-top:4px;text-transform:uppercase}
+.member-activity{min-height:15px;color:#8b8490;font-size:10px;letter-spacing:1px;margin-top:5px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.status-online .member-role,.profile-status.status-online{color:#22ff88;text-shadow:0 0 12px #22ff8877}
+.status-idle .member-role,.profile-status.status-idle{color:#ffcc33;text-shadow:0 0 12px #ffcc3377}
+.status-dnd .member-role,.profile-status.status-dnd{color:#ff315c;text-shadow:0 0 12px #ff315c77}
+.status-offline .member-role,.profile-status.status-offline{color:#77717b}
+.profile-status{margin:6px 0 0!important;letter-spacing:4px;font-size:12px;font-weight:700}
+.profile-activity{min-height:18px;color:#aaa!important;letter-spacing:2px!important;font-size:12px!important;margin:8px 0!important}
