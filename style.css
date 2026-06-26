@@ -14,7 +14,7 @@
 /* Final fixes: centered names/titles and no public music UI */
 .member-content{position:relative;z-index:1;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;}
 .member-name,.member-role{text-align:center;width:100%;}
-.hidden-audio{display:none!important;}
+.hidden-audio{display:none!important;}asdadad
 .music-player,.profile-music-actions{display:none!important;}
 
 
