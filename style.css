@@ -305,3 +305,6 @@
 .member-card .avatar{transition:.25s}
 .member-card:hover .avatar{box-shadow:0 0 0 8px rgba(255,23,77,.08),0 0 30px rgba(255,23,77,.34);border-color:var(--red)}
 @media(max-width:850px){.visitor-dashboard{grid-template-columns:1fr}.visitor-row{grid-template-columns:1fr!important;gap:8px}.visitor-row time{text-align:left!important;white-space:normal}.visitor-row span{max-width:100%;white-space:normal}}
+
+/* Cloud save status */
+.cloud-status{grid-column:1/-1;margin:0;color:#aaa;font-size:12px;letter-spacing:1px;text-align:center}.cloud-status.cloud-ok{color:#22ff88;text-shadow:0 0 12px #22ff8844}.cloud-status.cloud-bad{color:#ff6b86;text-shadow:0 0 12px #ff174d44}
