@@ -55,15 +55,38 @@ function currentState(){ return { members: store.members, settings: store.settin
 // no matter which old save format is currently in Firestore.
 function normalizeCloudState(raw){
   if(!raw || typeof raw !== 'object') return null;
-  let members = Array.isArray(raw.members) ? raw.members : [];
+
+  // Firestore must be the public source of truth. Accept all formats from older builds:
+  // 1) { members: [ {..}, {..} ] }
+  // 2) { members: '[{"name":"..."}]' }
+  // 3) { members: [ '{"name":"..."}', '{"name":"..."}' ] }
+  // 4) { 0:{..}, 1:{..} }
+  let members = [];
+
+  if(Array.isArray(raw.members)){
+    members = raw.members;
+  }else if(typeof raw.members === 'string'){
+    try{
+      const parsed = JSON.parse(raw.members);
+      members = Array.isArray(parsed) ? parsed : [];
+    }catch(e){ members = []; }
+  }
+
+  // If Firestore has an array of JSON strings, parse each item.
+  members = members.map(item => {
+    if(typeof item === 'string'){
+      try{ return JSON.parse(item); }catch(e){ return null; }
+    }
+    return item;
+  }).filter(Boolean);
 
   // Legacy/malformed fallback: document has fields "0", "1", "2"... as members.
   if(!members.length){
     members = Object.keys(raw)
-      .filter(k => /^\d+$/.test(k) && raw[k] && typeof raw[k] === 'object')
+      .filter(k => /^\d+$/.test(k) && raw[k])
       .sort((a,b) => Number(a) - Number(b))
-      .map(k => raw[k])
-      .filter(m => m && (m.name || m.id));
+      .map(k => typeof raw[k] === 'string' ? (()=>{try{return JSON.parse(raw[k])}catch(e){return null}})() : raw[k])
+      .filter(m => m && typeof m === 'object' && (m.name || m.id));
   }
 
   members = members.map((m, i) => ({
@@ -88,27 +111,28 @@ function normalizeCloudState(raw){
     ? {...DEFAULT_SETTINGS, ...raw.settings}
     : {...DEFAULT_SETTINGS, music: raw.music || '', bg: raw.bg || raw.background || ''};
 
-  return { members, settings, updatedAt: +(raw.updatedAt || 0), publishedAt: raw.publishedAt || '' };
+  return { members, settings, updatedAt: +(raw.updatedAt || Date.now()), publishedAt: raw.publishedAt || '' };
 }
 
 function applyState(state){
   const normalized = normalizeCloudState(state);
   if(!normalized) return;
-  const cloudUpdated = +(normalized.updatedAt || 0);
-  const localUpdated = getLocalUpdatedAt();
-  // Only protect unsaved local owner edits. Visitors must always see the public Firestore version.
-  if(ownerUnlocked && localUpdated && cloudUpdated && localUpdated > cloudUpdated){
-    updateCloudStatus('Cloud: connected, local edits newer. Click Save / Publish To Cloud.', true);
-    return;
-  }
+
+  // IMPORTANT: Firestore is the public source of truth.
+  // This guarantees every browser renders the same published members/settings,
+  // instead of staying on localStorage/demo data.
   applyingCloud=true;
-  if(Array.isArray(normalized.members)) localStorage.okdMembers=JSON.stringify(normalized.members);
-  if(normalized.settings) localStorage.okdSettings=JSON.stringify({...DEFAULT_SETTINGS,...normalized.settings});
-  if(cloudUpdated) localStorage.okdUpdatedAt=String(cloudUpdated);
+  localStorage.okdMembers = JSON.stringify(normalized.members || []);
+  localStorage.okdSettings = JSON.stringify({...DEFAULT_SETTINGS, ...(normalized.settings || {})});
+  localStorage.okdUpdatedAt = String(normalized.updatedAt || Date.now());
   applyingCloud=false;
-  render(); fetchLanyardPresence();
+
+  render();
+  fetchLanyardPresence();
+  updateCloudStatus('Cloud: public data loaded', true);
   if(!$('#app').classList.contains('hidden') && $('#profileView').classList.contains('hidden')) setupAudio(true);
 }
+
 async function saveCloudNow(silent=false){
   if(applyingCloud || !ownerUnlocked) return false;
   if(!cloudRef){ updateCloudStatus('Cloud: not connected. Check firebase-config.js / Firestore.', false); if(!silent) alert('Cloud is not connected. Check firebase-config.js, Firestore rules, and redeploy.'); return false; }
@@ -136,32 +160,45 @@ function initCloudSync(){
     if(!firebaseConfigured() || cloudRef) return;
     const cfg = window.FIREBASE_CONFIG || window.firebaseConfig;
     if(!firebase.apps.length) firebase.initializeApp(cfg);
-    cloudRef=firebase.firestore().collection('teamokd').doc('publicShowcase');
-    cloudReady=true;
-    updateCloudStatus('Cloud: connected', true);
+    const db = firebase.firestore();
+    cloudRef = db.collection('teamokd').doc('publicShowcase');
+    cloudReady = true;
+    updateCloudStatus('Cloud: connecting...', false);
     initVisitorAnalytics();
 
-    // Immediate load first, so visitors do not stay on local/demo cache.
-    cloudRef.get().then(snap => {
-      const state = snap.exists ? snap.data() : null;
-      if(state) applyState(state);
+    // Force a server read first. This avoids local/demo cache being shown to visitors.
+    cloudRef.get({source:'server'}).then(snap => {
+      if(snap.exists){
+        applyState(snap.data());
+      }else{
+        updateCloudStatus('Cloud: empty. Owner must publish.', false);
+      }
     }).catch(err => {
-      console.warn('Initial Firestore load failed:', err);
-      updateCloudStatus('Cloud: initial load failed. Check Firestore rules.', false);
+      console.warn('Server Firestore load failed, trying normal load:', err);
+      cloudRef.get().then(snap => {
+        if(snap.exists) applyState(snap.data());
+        else updateCloudStatus('Cloud: empty. Owner must publish.', false);
+      }).catch(e => {
+        console.error('Firestore load failed:', e);
+        updateCloudStatus('Cloud: read failed. Check Firestore Rules/config.', false);
+      });
     });
 
+    // Keep all browsers synced live after first load.
     cloudRef.onSnapshot(snap=>{
-      const state=snap.exists ? snap.data() : null;
-      if(state) applyState(state);
-      else {
+      if(snap.exists){
+        applyState(snap.data());
+      }else{
         updateCloudStatus('Cloud: empty. Owner must click Save / Publish To Cloud.', false);
-        if(ownerUnlocked) queueCloudSave();
       }
     }, err=>{
       console.error(err);
-      updateCloudStatus('Cloud: read failed. Check Firestore Rules.', false);
+      updateCloudStatus('Cloud: live sync failed. Check Firestore Rules.', false);
     });
-  }catch(e){ updateCloudStatus('Cloud: disabled / config error', false); console.warn('Firebase cloud sync disabled:', e); }
+  }catch(e){
+    updateCloudStatus('Cloud: disabled / config error', false);
+    console.warn('Firebase cloud sync disabled:', e);
+  }
 }
 
 
@@ -335,7 +372,7 @@ function linkFor(type,val){
   };
   return map[type]||'';
 }
-function render(){const members=store.members, settings=store.settings; $('#memberCount').textContent=members.length; document.body.style.backgroundImage=settings.bg?`radial-gradient(circle at 50% 15%,#22040d55,#000 60%),url(${settings.bg})`:''; $('#featuredMembers').innerHTML=''; $('#memberGrid').innerHTML=''; members.forEach((m,i)=>{const card=document.createElement('div'); card.className='member-card '+(i<2?'featured':''); card.dataset.memberId=m.id; const pres=presenceFor(m); const st=pres?statusClass(pres.discord_status):'offline'; card.classList.add(`status-${st}`); card.innerHTML=`<div class="watermark">TEAM OKD</div><div class="edit-dot">★</div><div class="member-content"><img class="avatar" src="${avatarForMember(m,pres)}" alt="${escapeHTML(m.name)} avatar"><div class="member-name">${m.name}</div><div class="member-title">${m.role||'MEMBER'}</div><div class="member-role">${statusEmoji(st)} ${statusText(st)}</div><div class="member-activity">${cardPresenceHTML(pres)}</div></div>`; card.onclick=()=>openProfile(m.id); (i<2?$('#featuredMembers'):$('#memberGrid')).appendChild(card);}); renderAdmin();}
+function render(){const members=Array.isArray(store.members)?store.members:[], settings=store.settings; $('#memberCount').textContent=members.length; document.body.style.backgroundImage=settings.bg?`radial-gradient(circle at 50% 15%,#22040d55,#000 60%),url(${settings.bg})`:''; $('#featuredMembers').innerHTML=''; $('#memberGrid').innerHTML=''; members.forEach((m,i)=>{const card=document.createElement('div'); card.className='member-card '+(i<2?'featured':''); card.dataset.memberId=m.id; const pres=presenceFor(m); const st=pres?statusClass(pres.discord_status):'offline'; card.classList.add(`status-${st}`); card.innerHTML=`<div class="watermark">TEAM OKD</div><div class="edit-dot">★</div><div class="member-content"><img class="avatar" src="${avatarForMember(m,pres)}" alt="${escapeHTML(m.name)} avatar"><div class="member-name">${m.name}</div><div class="member-title">${m.role||'MEMBER'}</div><div class="member-role">${statusEmoji(st)} ${statusText(st)}</div><div class="member-activity">${cardPresenceHTML(pres)}</div></div>`; card.onclick=()=>openProfile(m.id); (i<2?$('#featuredMembers'):$('#memberGrid')).appendChild(card);}); renderAdmin();}
 function openProfile(id){
   const m=store.members.find(x=>x.id===id); if(!m)return;
   trackVisit('profile', m.name || id);
@@ -468,6 +505,13 @@ trackVisit('home', 'Home');
 const c=$('#particles'),ctx=c.getContext('2d'); let ps=[]; function size(){c.width=innerWidth;c.height=innerHeight;ps=Array.from({length:95},()=>({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*2+0.4,s:Math.random()*0.6+0.15,a:Math.random()}));} addEventListener('resize',size); size(); function anim(){ctx.clearRect(0,0,c.width,c.height); ps.forEach(p=>{p.y-=p.s;if(p.y<0)p.y=c.height; ctx.globalAlpha=p.a; ctx.fillStyle=Math.random()>.88?'#ff174d':'#7b1025'; ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();}); requestAnimationFrame(anim)} anim();
 initCloudSync();
 render();
+// Public debug helper: open console and run OKD_DEBUG() to confirm what this browser loaded.
+window.OKD_DEBUG = async function(){
+  const out = { localMembers: store.members, localSettings: store.settings, firebaseConfigured: firebaseConfigured(), cloudReady };
+  try{ if(cloudRef){ const snap = await cloudRef.get({source:'server'}); out.firestore = snap.exists ? snap.data() : null; } }catch(e){ out.firestoreError = String(e && e.message || e); }
+  console.log('TEAM OKD DEBUG', out); return out;
+};
+
 fetchLanyardPresence();
 setInterval(fetchLanyardPresence, 15000);
 
