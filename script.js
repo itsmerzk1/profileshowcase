@@ -188,7 +188,9 @@ function spotifyCover(p){
 function customStatusText(p){
   const custom = (p?.activities||[]).find(a=>a.type===4 || a.name==='Custom Status');
   if(!custom) return '';
-  return [custom.emoji?.name, custom.state].filter(Boolean).join(' ');
+  const emoji = custom.emoji?.name || '';
+  const text = custom.state || custom.details || '';
+  return [emoji, text].filter(Boolean).join(' ').trim();
 }
 function mainActivity(p){
   if(!p) return null;
@@ -196,9 +198,13 @@ function mainActivity(p){
 }
 function activityLine(p){
   if(!p) return '';
+  // Priority for TEAM OKD profile: Discord Custom Status first, then Spotify, then game/activity.
+  // This makes your Discord status message show on the profile automatically.
+  const custom = customStatusText(p);
+  if(custom) return `💬 ${custom}`;
   if(p.listening_to_spotify) return `🎵 ${spotifyText(p)}`;
   const a=mainActivity(p);
-  if(!a) return customStatusText(p) || '';
+  if(!a) return '';
   const name=a.name || 'Activity';
   const details=a.details || a.state || '';
   return details ? `🎮 ${name} — ${details}` : `🎮 ${name}`;
@@ -409,7 +415,7 @@ const c=$('#particles'),ctx=c.getContext('2d'); let ps=[]; function size(){c.wid
 initCloudSync();
 render();
 fetchLanyardPresence();
-setInterval(fetchLanyardPresence, 30000);
+setInterval(fetchLanyardPresence, 15000);
 
 
 /* TEAM OKD Visitor Analytics + owner-only IP security log
