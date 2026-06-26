@@ -28,11 +28,14 @@ function mediaRef(key){ return `idb:${key}`; }
 async function resolveMediaUrl(url){ if(String(url||'').startsWith('idb:')) return await idbGet(String(url).slice(4)); return url||''; }
 
 const DEFAULT_SETTINGS={music:'',bg:''};
+function getLocalUpdatedAt(){ return +(localStorage.okdUpdatedAt || 0); }
+function touchLocal(){ localStorage.okdUpdatedAt = String(Date.now()); }
+function safeParse(json, fallback){ try{ return JSON.parse(json || ''); }catch(e){ return fallback; } }
 const store={
-  get members(){return JSON.parse(localStorage.okdMembers||JSON.stringify(demo))},
-  set members(v){localStorage.okdMembers=JSON.stringify(v); queueCloudSave();},
-  get settings(){return JSON.parse(localStorage.okdSettings||JSON.stringify(DEFAULT_SETTINGS))},
-  set settings(v){localStorage.okdSettings=JSON.stringify(v); queueCloudSave();}
+  get members(){return safeParse(localStorage.okdMembers, demo)},
+  set members(v){localStorage.okdMembers=JSON.stringify(v); touchLocal(); queueCloudSave();},
+  get settings(){return safeParse(localStorage.okdSettings, DEFAULT_SETTINGS)},
+  set settings(v){localStorage.okdSettings=JSON.stringify(v); touchLocal(); queueCloudSave();}
 };
 
 // Optional free cloud sync: Firebase Firestore.
@@ -44,12 +47,20 @@ function firebaseConfigured(){
   const cfg=window.FIREBASE_CONFIG||window.firebaseConfig||{};
   return !!(cfg.apiKey && cfg.projectId && !String(cfg.apiKey).includes('PASTE_') && window.firebase && firebase.apps !== undefined && firebase.firestore);
 }
-function currentState(){ return { members: store.members, settings: store.settings, updatedAt: Date.now() }; }
+function currentState(){ return { members: store.members, settings: store.settings, updatedAt: Date.now(), publishedAt: new Date().toISOString() }; }
 function applyState(state){
   if(!state) return;
+  const cloudUpdated = +(state.updatedAt || 0);
+  const localUpdated = getLocalUpdatedAt();
+  // Owner mode may have unsaved local edits. Do not let an older cloud snapshot wipe them.
+  if(ownerUnlocked && localUpdated && cloudUpdated && localUpdated > cloudUpdated){
+    updateCloudStatus('Cloud: connected, local edits newer. Click Save / Publish To Cloud.', true);
+    return;
+  }
   applyingCloud=true;
   if(Array.isArray(state.members)) localStorage.okdMembers=JSON.stringify(state.members);
   if(state.settings) localStorage.okdSettings=JSON.stringify({...DEFAULT_SETTINGS,...state.settings});
+  if(cloudUpdated) localStorage.okdUpdatedAt=String(cloudUpdated);
   applyingCloud=false;
   render(); fetchLanyardPresence();
   if(!$('#app').classList.contains('hidden') && $('#profileView').classList.contains('hidden')) setupAudio(true);
@@ -59,8 +70,10 @@ async function saveCloudNow(silent=false){
   if(!cloudRef){ updateCloudStatus('Cloud: not connected. Check firebase-config.js / Firestore.', false); if(!silent) alert('Cloud is not connected. Check firebase-config.js, Firestore rules, and redeploy.'); return false; }
   try{
     updateCloudStatus('Cloud: saving...', false);
-    await cloudRef.set(currentState(), {merge:false});
-    updateCloudStatus('Cloud: saved / public', true);
+    const state=currentState();
+    await cloudRef.set(state, {merge:false});
+    localStorage.okdUpdatedAt=String(state.updatedAt);
+    updateCloudStatus('Cloud: saved / public. Visitors will see this data.', true);
     return true;
   }catch(err){
     console.error(err);
@@ -86,7 +99,13 @@ function initCloudSync(){
     cloudRef.onSnapshot(snap=>{
       const state=snap.exists ? snap.data() : null;
       if(state) applyState(state);
-      else if(ownerUnlocked) queueCloudSave();
+      else {
+        updateCloudStatus('Cloud: empty. Owner must click Save / Publish To Cloud.', false);
+        if(ownerUnlocked) queueCloudSave();
+      }
+    }, err=>{
+      console.error(err);
+      updateCloudStatus('Cloud: read failed. Check Firestore Rules.', false);
     });
   }catch(e){ updateCloudStatus('Cloud: disabled / config error', false); console.warn('Firebase cloud sync disabled:', e); }
 }
@@ -310,8 +329,8 @@ $('#memberForm').onsubmit=async e=>{
     }
     const idx=members.findIndex(x=>x.id===id); idx>=0?members[idx]=m:members.push(m);
     store.members=members; e.target.reset(); $('#editId').value=''; if($('#profileMusicUpload')) $('#profileMusicUpload').value=''; render();
-    await saveCloudNow(true);
-    alert(file ? 'Member saved and published. Uploaded music is local only; use Discord/direct audio URL if visitors must hear it.' : 'Member saved and published.');
+    const published = await saveCloudNow(true);
+    alert((published ? 'Member saved and published.' : 'Member saved locally but cloud publish failed. Click Save / Publish To Cloud and check Firestore Rules.') + (file ? ' Uploaded music is local only; use Discord/direct audio URL if visitors must hear it.' : ''));//
   }catch(err){ alert(err.message || 'Profile music upload failed.'); }
 }
 $('#saveSite').onclick=async()=>{
